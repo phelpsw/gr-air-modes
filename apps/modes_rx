@@ -46,6 +46,8 @@ def main():
   #output plugins
   optparser.add_option("-K","--kml", type="string", default=None,
                        help="filename for Google Earth KML output")
+  optparser.add_option("-S","--state", type="int", default=None,
+                       help="The port number to use for simple state output.")
   optparser.add_option("-P","--sbs1", action="store_true", default=False,
                        help="open an SBS-1-compatible server on port 30003")
   optparser.add_option("-m","--multiplayer", type="string", default=None,
@@ -74,6 +76,10 @@ def main():
     lock = threading.Lock()
     sqldb = air_modes.output_sql(cpr_dec, dbname, lock, publisher) #input into the db
     kmlgen = air_modes.output_kml(options.kml, dbname, my_position, lock) #create a KML generating thread to read from the db
+
+  if options.state is not None:
+      state_port = options.state
+      state = air_modes.output_state(cpr_dec, state_port, publisher)
 
   if options.no_print is not True:
     printer = air_modes.output_print(cpr_dec, publisher)
