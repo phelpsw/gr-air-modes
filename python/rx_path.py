@@ -37,7 +37,7 @@ class rx_path(gr.hier_block2):
         # Convert incoming I/Q baseband to amplitude
         self._demod = blocks.complex_to_mag_squared()
         if use_dcblock:
-            self._dcblock = filter.dc_blocker_cc(100*self._spc,True)
+            self._dcblock = filter.dc_blocker_cc(100*self._spc,False)
             self.connect(self, self._dcblock, self._demod)
         else:
             self.connect(self, self._demod)
@@ -65,13 +65,13 @@ class rx_path(gr.hier_block2):
         self.connect(self._sync, self._slicer)
 
     def set_rate(self, rate):
-        self._sync.set_rate(rate)
+        self._sync.set_rate(int(rate))
         self._spc = int(rate/2e6)
         self._avg.set_length_and_scale(48*self._spc, 1.0/(48*self._spc))
         if self._bb != self._demod:
             self._pmf.set_length_and_scale(self._spc, 1.0/self._spc)
-        if self._dcblock is not None:
-            self._dcblock.set_length(100*self._spc)
+#        if self._dcblock is not None:
+#            self._dcblock.set_length(100*self._spc)
 
     def set_threshold(self, threshold):
         self._sync.set_threshold(threshold)

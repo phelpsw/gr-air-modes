@@ -27,6 +27,7 @@ from gnuradio import gr, gru, eng_notation, filter, blocks
 from gnuradio.filter import optfir
 from gnuradio.eng_option import eng_option
 from gnuradio.gr.pubsub import pubsub
+from gnuradio.filter import pfb
 from optparse import OptionParser, OptionGroup
 import air_modes
 import zmq
@@ -45,8 +46,15 @@ class modes_radio (gr.top_block, pubsub):
     self._resample = None
     self._setup_source(options)
 
-    self._rx_path = air_modes.rx_path(self._rate, options.threshold,
+    if self._rate < 4e6:
+        self._resample = pfb.arb_resampler_ccf(4.e6/self._rate)
+        self._rx_rate = 4e6
+    else:
+        self._rx_rate = self._rate
+
+    self._rx_path = air_modes.rx_path(self._rx_rate, options.threshold,
                                       self._queue, options.pmf, options.dcblock)
+
 
     #now subscribe to set various options via pubsub
     self.subscribe("freq", self.set_freq)
@@ -81,7 +89,7 @@ class modes_radio (gr.top_block, pubsub):
   @staticmethod
   def add_radio_options(parser):
     group = OptionGroup(parser, "Receiver setup options")
-      
+
     #Choose source
     group.add_option("-s","--source", type="string", default="uhd",
                       help="Choose source: uhd, osmocom, <filename>, or <ip:port> [default=%default]")
@@ -125,8 +133,20 @@ class modes_radio (gr.top_block, pubsub):
     return self.get_gain()
 
   def set_rate(self, rate):
-    self._rx_path.set_rate(rate)
-    return self._u.set_rate(rate) if self.live_source() else 0
+    if(rate < 4e6 and self._rate > 4e6):
+        raise NotImplementedError("Lowering rate <4e6Msps not currently supported.")
+    if(rate < 4e6):
+        self._resample.set_rate(4e6/rate)
+        self._rx_rate = 4e6
+    else:
+        self._rx_rate = rate
+    self._rx_path.set_rate(self._rx_rate)
+    if self._options.source in ("osmocom"):
+        return self._u.set_sample_rate(rate)
+    if self._options.source in ("uhd"):
+        return self._u.set_rate(rate)
+    else:
+        return 0
 
   def set_threshold(self, threshold):
     self._rx_path.set_threshold(threshold)
@@ -199,7 +219,7 @@ class modes_radio (gr.top_block, pubsub):
           ip, port = re.search("(.*)\:(\d{1,5})", options.source).groups()
         except:
           raise Exception("Please input UDP source e.g. 192.168.10.1:12345")
-        self._u = gr.udp_source(gr.sizeof_gr_complex, ip, int(port))
+        self._u = blocks.udp_source(gr.sizeof_gr_complex, ip, int(port))
         print "Using UDP source %s:%s" % (ip, port)
       else:
         self._u = blocks.file_source(gr.sizeof_gr_complex, options.source)
@@ -208,5 +228,7 @@ class modes_radio (gr.top_block, pubsub):
     print "Rate is %i" % (options.rate,)
 
   def close(self):
+    self.stop()
+    self.wait()
     self._sender.close()
     self._u = None

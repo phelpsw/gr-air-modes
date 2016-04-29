@@ -335,13 +335,13 @@ def parseBDS09_1(data):
   ew = bool(data["dew"])
   subtype = data["sub"]
   if subtype == 0x02:
-    ns_vel <<= 2
-    ew_vel <<= 2
+    ns_vel *= 4
+    ew_vel *= 4
 
   velocity = math.hypot(ns_vel, ew_vel)
   if ew:
     ew_vel = 0 - ew_vel
-	
+
   if ns_vel == 0:
     heading = 0
   else:
@@ -423,12 +423,12 @@ def parse_TCAS_CRM(data):
 def make_parser(pub):
   publisher = pub
   def publish(message):
-    [data, ecc, reference, timestamp] = message.split()
+    [data, ecc, reference, int_timestamp, frac_timestamp] = message.split()
     try:
       ret = air_modes.modes_report(modes_reply(int(data, 16)),
                                    int(ecc, 16),
                                    10.0*math.log10(max(1e-8,float(reference))),
-                                   air_modes.stamp(0, float(timestamp)))
+                                   air_modes.stamp(int(int_timestamp), float(frac_timestamp)))
       pub["modes_dl"] = ret
       pub["type%i_dl" % ret.data.get_type()] = ret
     except ADSBError:
